@@ -1,0 +1,72 @@
+import telebot
+import os
+import requests
+
+# Bot initialization
+BOT_TOKEN = 'ENTER_YOUR_API_HERE_'
+bot = telebot.TeleBot(BOT_TOKEN)
+
+def get_daily_horoscope(sign: str, day: str) -> dict:
+    """Get daily horoscope for a zodiac sign."""
+    #url = "https://horoscope-app-api.vercel.app/api/v1/get-horoscope/daily"
+    params = {"sign": sign, "day": day}
+    response = requests.get(url, params)
+    return response.json()
+
+@bot.message_handler(commands=['start', 'hello'])
+def send_welcome(message):
+    welcome_messages = [
+        "Howdy, how are you doing?",
+        "This is a horoscope bot. I'm here to tell you your daily horoscope!",
+        "Use the /horoscope command to get your daily horoscope reading."
+    ]
+    for msg in welcome_messages:
+        bot.reply_to(message, msg)
+
+@bot.message_handler(commands=['horoscope'])
+def sign_handler(message):
+    text = ("What's your zodiac sign?\nChoose one: *Aries*, *Taurus*, *Gemini*, "
+            "*Cancer*, *Leo*, *Virgo*, *Libra*, *Scorpio*, *Sagittarius*, "
+            "*Capricorn*, *Aquarius*, *Pisces*.")
+    sent_msg = bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    bot.register_next_step_handler(sent_msg, day_handler)
+
+def day_handler(message):
+    sign = message.text
+    if not is_valid_sign(sign):
+        bot.send_message(message.chat.id, "Please enter a valid zodiac sign!")
+        return sign_handler(message)
+    
+    text = ("What day do you want to know?\nChoose one: *TODAY*, *TOMORROW*, "
+            "*YESTERDAY*, or a date in format YYYY-MM-DD.")
+    sent_msg = bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    bot.register_next_step_handler(sent_msg, fetch_horoscope, sign.capitalize())
+
+def fetch_horoscope(message, sign):
+    day = message.text.upper()
+    try:
+        horoscope = get_daily_horoscope(sign, day)
+        if horoscope.get("success"):
+            data = horoscope["data"]
+            horoscope_message = (
+                f'*Horoscope for {sign}*\n\n'
+                f'*Date:* {data["date"]}\n\n'
+                f'*Reading:* {data["horoscope_data"]}'
+            )
+            bot.send_message(message.chat.id, horoscope_message, parse_mode="Markdown")
+        else:
+            bot.send_message(message.chat.id, "Sorry, couldn't fetch the horoscope. Please try again!")
+    except Exception as e:
+        bot.send_message(message.chat.id, "An error occurred. Please try again!")
+
+def is_valid_sign(sign):
+    """Check if the provided zodiac sign is valid."""
+    valid_signs = {
+        'aries', 'taurus', 'gemini', 'cancer', 'leo', 'virgo',
+        'libra', 'scorpio', 'sagittarius', 'capricorn', 'aquarius', 'pisces'
+    }
+    return sign.lower() in valid_signs
+
+if __name__ == "__main__":
+    print("Bot started...")
+    bot.infinity_polling()
